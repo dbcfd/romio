@@ -4,11 +4,11 @@ use std::io::{Read, Write};
 use std::os::unix::net::UnixStream as StdStream;
 use std::thread;
 
-use futures::executor;
-use futures::future::FutureObj;
+use std::task::LocalWaker;
+use std::pin::Pin;
+use futures::future::{FutureObj, self};
 use futures::io::{AsyncRead, AsyncReadExt, AsyncWriteExt};
-use futures::Stream;
-use futures::StreamExt;
+use futures::{Stream, StreamExt, Poll, executor};
 use log::{error, info};
 use tempdir::TempDir;
 
@@ -148,62 +148,52 @@ impl RomioReader {
 impl Stream for RomioReader {
     type Item = Vec<u8>;
 
-    fn poll_next(mut self: std::pin::Pin<&mut Self>, lw: &std::task::LocalWaker) -> futures::Poll<Option<Self::Item>> {
+    fn poll_next(mut self: Pin<&mut Self>, lw: &LocalWaker) -> Poll<Option<Self::Item>> {
         let this = &mut *self;
         match this.inner.poll_read(lw, this.buffer.as_mut()) {
-            futures::Poll::Pending => futures::Poll::Pending,
-            futures::Poll::Ready(Err(e)) => {
+            Poll::Pending => Poll::Pending,
+            Poll::Ready(Err(e)) => {
                 error!("Failed to poll_read {:?}", e);
-                futures::Poll::Ready(None)
+                Poll::Ready(None)
             },
-            futures::Poll::Ready(Ok(bytes_read)) => {
+            Poll::Ready(Ok(bytes_read)) => {
                 info!("Read {} bytes", bytes_read);
                 if bytes_read == 0 {
-                    return futures::Poll::Ready(None);
+                    return Poll::Ready(None);
                 }
-
                 let (r, _) = this.buffer.split_at(bytes_read);
-                futures::Poll::Ready(Some(r.to_vec()))
+                Poll::Ready(Some(r.to_vec()))
             }
         }
     }
 }
 
 impl From<UnixStream> for RomioReader {
-    fn from(v: UnixStream) -> Self {
-        RomioReader::new(v)
+    fn from(stream: UnixStream) -> Self {
+        RomioReader::new(stream)
     }
 }
 
 #[test]
 fn reads_bytes() {
     drop(env_logger::try_init());
-
     let (mut server, client) = UnixStream::pair().expect("Could not build pair");
 
-    let send_complete = std::thread::spawn(move || {
-        let bytes = "{\"key1\":\"key with a paren set {}\",\"key2\":12345}{\"another\":\"part being sent\"}".as_bytes();
+    std::thread::spawn(move || {
+        let bytes = b"The thrust of a sword will end this surrender";
         let f = server.write_all(bytes);
-
         executor::block_on(f).expect("Failed to send");
-
         executor::block_on(server.close()).expect("Failed to close");
+    }).join().expect("Failed to send");
+
+    let buf: Vec<u8> = executor::block_on(async {
+        let reader: RomioReader = client.into();
+        await!(reader.fold(vec![], |mut agg, b| {
+            agg.extend(b);
+            future::ready(agg)
+        }))
     });
 
-    let fut_string = async {
-        let reader: RomioReader = client.into();
-        let bytes: Vec<u8> = await!(reader
-            .fold(vec![], |mut agg, b| {
-                agg.extend(b);
-                futures::future::ready(agg)
-            })
-        );
-        String::from_utf8(bytes).expect("Failed to convert to string")
-    };
-
-    send_complete.join().expect("Failed to send");
-
-    let string = futures::executor::block_on(fut_string);
-
-    assert_eq!(string, "{\"key1\":\"key with a paren set {}\",\"key2\":12345}{\"another\":\"part being sent\"}".to_string());
+    let expected = "The thrust of a sword will end this surrender";
+    assert_eq!(buf, expected.as_bytes());
 }
