@@ -62,6 +62,7 @@
 
 pub mod tcp;
 pub mod udp;
+pub mod tls;
 
 #[cfg(unix)]
 pub mod uds;
