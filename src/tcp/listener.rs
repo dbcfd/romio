@@ -195,13 +195,13 @@ impl TcpListener {
         self.io.get_ref().set_ttl(ttl)
     }
 
-    fn poll_accept_std(&self, waker: &Waker) -> Poll<io::Result<(net::TcpStream, SocketAddr)>> {
-        ready!(self.io.poll_read_ready(waker)?);
+    fn poll_accept_std(&self, cx: &mut Context<'_>) -> Poll<io::Result<(net::TcpStream, SocketAddr)>> {
+        ready!(self.io.poll_read_ready(&mut cx)?);
 
         match self.io.get_ref().accept_std() {
             Ok(pair) => Poll::Ready(Ok(pair)),
             Err(ref e) if e.kind() == io::ErrorKind::WouldBlock => {
-                self.io.clear_read_ready(waker)?;
+                self.io.clear_read_ready(&mut cx)?;
                 Poll::Pending
             }
             Err(e) => Poll::Ready(Err(e)),
@@ -214,8 +214,8 @@ impl AsyncReady for TcpListener {
     type Err = std::io::Error;
 
     /// Check if the stream can be read from.
-    fn poll_ready(&self, waker: &Waker) -> Poll<Result<Self::Ok, Self::Err>> {
-        let (io, addr) = ready!(self.poll_accept_std(waker)?);
+    fn poll_ready(&self, cx: &mut Context<'_>) -> Poll<Result<Self::Ok, Self::Err>> {
+        let (io, addr) = ready!(self.poll_accept_std(&mut cx)?);
         let io = mio::net::TcpStream::from_stream(io)?;
         let io = TcpStream::new(io);
         Poll::Ready(Ok((io, addr)))
@@ -251,8 +251,8 @@ pub struct Incoming<'a> {
 impl<'a> Stream for Incoming<'a> {
     type Item = io::Result<TcpStream>;
 
-    fn poll_next(self: Pin<&mut Self>, waker: &Waker) -> Poll<Option<Self::Item>> {
-        let (socket, _) = ready!(self.inner.poll_ready(waker)?);
+    fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        let (socket, _) = ready!(self.inner.poll_ready(&mut cx)?);
         Poll::Ready(Some(Ok(socket)))
     }
 }

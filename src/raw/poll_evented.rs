@@ -163,7 +163,7 @@ where
     /// cleared by calling [`clear_read_ready`].
     ///
     /// [`clear_read_ready`]: #method.clear_read_ready
-    pub fn poll_read_ready(&self, waker: &Waker) -> Poll<io::Result<mio::Ready>> {
+    pub fn poll_read_ready(&self, cx: &mut Context<'_>) -> Poll<io::Result<mio::Ready>> {
         self.register()?;
 
         // Load cached & encoded readiness.
@@ -178,7 +178,7 @@ where
             // stream. This happens in a loop to ensure that the stream gets
             // drained.
             loop {
-                let ready = ready!(self.inner.registration.poll_read_ready(waker)?);
+                let ready = ready!(self.inner.registration.poll_read_ready(&mut cx)?);
                 cached |= ready.as_usize();
 
                 // Update the cache store
@@ -210,14 +210,14 @@ where
     ///
     /// The `mask` argument specifies the readiness bits to clear. This may not
     /// include `writable` or `hup`.
-    pub fn clear_read_ready(&self, waker: &Waker) -> io::Result<()> {
+    pub fn clear_read_ready(&self, cx: &mut Context<'_>) -> io::Result<()> {
         self.inner
             .read_readiness
             .fetch_and(!mio::Ready::readable().as_usize(), Relaxed);
 
-        if self.poll_read_ready(waker)?.is_ready() {
+        if self.poll_read_ready(&mut cx)?.is_ready() {
             // Notify the current task
-            waker.wake();
+            cx.waker().wake();
         }
 
         Ok(())
@@ -242,7 +242,7 @@ where
     ///
     /// * `ready` contains bits besides `writable` and `hup`.
     /// * called from outside of a task context.
-    pub fn poll_write_ready(&self, waker: &Waker) -> Poll<Result<mio::Ready, io::Error>> {
+    pub fn poll_write_ready(&self, cx: &mut Context<'_>) -> Poll<Result<mio::Ready, io::Error>> {
         self.register()?;
 
         // Load cached & encoded readiness.
@@ -257,7 +257,7 @@ where
             // stream. This happens in a loop to ensure that the stream gets
             // drained.
             loop {
-                let ready = ready!(self.inner.registration.poll_write_ready(waker)?);
+                let ready = ready!(self.inner.registration.poll_write_ready(&mut cx)?);
                 cached |= ready.as_usize();
 
                 // Update the cache store
@@ -293,14 +293,14 @@ where
     /// # Panics
     ///
     /// This function will panic if called from outside of a task context.
-    pub fn clear_write_ready(&self, waker: &Waker) -> io::Result<()> {
+    pub fn clear_write_ready(&self, cx: &mut Context<'_>) -> io::Result<()> {
         self.inner
             .write_readiness
             .fetch_and(!mio::Ready::writable().as_usize(), Relaxed);
 
-        if self.poll_write_ready(waker)?.is_ready() {
+        if self.poll_write_ready(&mut cx)?.is_ready() {
             // Notify the current task
-            waker.wake();
+            cx.waker().wake();
         }
 
         Ok(())
@@ -321,13 +321,13 @@ impl<E> AsyncRead for PollEvented<E>
 where
     E: Evented + Read,
 {
-    fn poll_read(&mut self, waker: &Waker, buf: &mut [u8]) -> Poll<io::Result<usize>> {
-        ready!(self.poll_read_ready(waker)?);
+    fn poll_read(&mut self, cx: &mut Context<'_>, buf: &mut [u8]) -> Poll<io::Result<usize>> {
+        ready!(self.poll_read_ready(&mut cx)?);
 
         let r = self.get_mut().read(buf);
 
         if is_wouldblock(&r) {
-            self.clear_read_ready(waker)?;
+            self.clear_read_ready(&mut cx)?;
             Poll::Pending
         } else {
             Poll::Ready(r)
@@ -339,33 +339,33 @@ impl<E> AsyncWrite for PollEvented<E>
 where
     E: Evented + Write,
 {
-    fn poll_write(&mut self, waker: &Waker, buf: &[u8]) -> Poll<io::Result<usize>> {
-        ready!(self.poll_write_ready(waker)?);
+    fn poll_write(&mut self, cx: &mut Context<'_>, buf: &[u8]) -> Poll<io::Result<usize>> {
+        ready!(self.poll_write_ready(&mut cx)?);
 
         let r = self.get_mut().write(buf);
 
         if is_wouldblock(&r) {
-            self.clear_write_ready(waker)?;
+            self.clear_write_ready(&mut cx)?;
             Poll::Pending
         } else {
             Poll::Ready(r)
         }
     }
 
-    fn poll_flush(&mut self, waker: &Waker) -> Poll<io::Result<()>> {
-        ready!(self.poll_write_ready(waker)?);
+    fn poll_flush(&mut self, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
+        ready!(self.poll_write_ready(&mut cx)?);
 
         let r = self.get_mut().flush();
 
         if is_wouldblock(&r) {
-            self.clear_write_ready(waker)?;
+            self.clear_write_ready(&mut cx)?;
             Poll::Pending
         } else {
             Poll::Ready(r)
         }
     }
 
-    fn poll_close(&mut self, _: &Waker) -> Poll<io::Result<()>> {
+    fn poll_close(&mut self, _: &mut Context<'_>) -> Poll<io::Result<()>> {
         Poll::Ready(Ok(()))
     }
 }
@@ -377,13 +377,13 @@ where
     E: Evented,
     &'a E: Read,
 {
-    fn poll_read(&mut self, waker: &Waker, buf: &mut [u8]) -> Poll<io::Result<usize>> {
-        ready!(self.poll_read_ready(waker)?);
+    fn poll_read(&mut self, cx: &mut Context<'_>, buf: &mut [u8]) -> Poll<io::Result<usize>> {
+        ready!(self.poll_read_ready(&mut cx)?);
 
         let r = self.get_ref().read(buf);
 
         if is_wouldblock(&r) {
-            self.clear_read_ready(waker)?;
+            self.clear_read_ready(&mut cx)?;
             Poll::Pending
         } else {
             Poll::Ready(r)
@@ -396,33 +396,33 @@ where
     E: Evented,
     &'a E: Write,
 {
-    fn poll_write(&mut self, waker: &Waker, buf: &[u8]) -> Poll<io::Result<usize>> {
-        ready!(self.poll_write_ready(waker)?);
+    fn poll_write(&mut self, cx: &mut Context<'_>, buf: &[u8]) -> Poll<io::Result<usize>> {
+        ready!(self.poll_write_ready(&mut cx)?);
 
         let r = self.get_ref().write(buf);
 
         if is_wouldblock(&r) {
-            self.clear_write_ready(waker)?;
+            self.clear_write_ready(&mut cx)?;
             Poll::Pending
         } else {
             Poll::Ready(r)
         }
     }
 
-    fn poll_flush(&mut self, waker: &Waker) -> Poll<io::Result<()>> {
-        ready!(self.poll_write_ready(waker)?);
+    fn poll_flush(&mut self, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
+        ready!(self.poll_write_ready(&mut cx)?);
 
         let r = self.get_ref().flush();
 
         if is_wouldblock(&r) {
-            self.clear_write_ready(waker)?;
+            self.clear_write_ready(&mut cx)?;
             Poll::Pending
         } else {
             Poll::Ready(r)
         }
     }
 
-    fn poll_close(&mut self, _: &Waker) -> Poll<io::Result<()>> {
+    fn poll_close(&mut self, _: &mut Context<'_>) -> Poll<io::Result<()>> {
         Poll::Ready(Ok(()))
     }
 }

@@ -107,8 +107,8 @@ impl Drop for Background {
 impl Future for Shutdown {
     type Output = Result<(), ()>;
 
-    fn poll(self: Pin<&mut Self>, waker: &Waker) -> Poll<Self::Output> {
-        self.inner.shared.shutdown_task.register(waker);
+    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        self.inner.shared.shutdown_task.register(&mut cx);
 
         if !self.inner.is_shutdown() {
             return Poll::Pending;

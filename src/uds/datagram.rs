@@ -141,16 +141,16 @@ impl AsyncDatagram for UnixDatagram {
 
     fn poll_send_to(
         &mut self,
-        waker: &Waker,
+        cx: &mut Context<'_>,
         buf: &[u8],
         receiver: &Self::Receiver,
     ) -> Poll<io::Result<usize>> {
-        ready!(self.io.poll_write_ready(waker)?);
+        ready!(self.io.poll_write_ready(&mut cx)?);
 
         match self.io.get_ref().send_to(buf, receiver) {
             Ok(n) => Poll::Ready(Ok(n)),
             Err(ref e) if e.kind() == io::ErrorKind::WouldBlock => {
-                self.io.clear_write_ready(waker)?;
+                self.io.clear_write_ready(&mut cx)?;
                 Poll::Pending
             }
             Err(e) => Poll::Ready(Err(e)),
@@ -159,15 +159,15 @@ impl AsyncDatagram for UnixDatagram {
 
     fn poll_recv_from(
         &mut self,
-        waker: &Waker,
+        cx: &mut Context<'_>,
         buf: &mut [u8],
     ) -> Poll<io::Result<(usize, Self::Sender)>> {
-        ready!(self.io.poll_read_ready(waker)?);
+        ready!(self.io.poll_read_ready(&mut cx)?);
 
         let r = self.io.get_ref().recv_from(buf);
 
         if is_wouldblock(&r) {
-            self.io.clear_read_ready(waker)?;
+            self.io.clear_read_ready(&mut cx)?;
             Poll::Pending
         } else {
             Poll::Ready(r)
@@ -180,8 +180,8 @@ impl AsyncReadReady for UnixDatagram {
     type Err = io::Error;
 
     /// Test whether this socket is ready to be read or not.
-    fn poll_read_ready(&self, waker: &Waker) -> Poll<Result<Self::Ok, Self::Err>> {
-        self.io.poll_read_ready(waker)
+    fn poll_read_ready(&self, cx: &mut Context<'_>) -> Poll<Result<Self::Ok, Self::Err>> {
+        self.io.poll_read_ready(&mut cx)
     }
 }
 
@@ -190,8 +190,8 @@ impl AsyncWriteReady for UnixDatagram {
     type Err = io::Error;
 
     /// Test whether this socket is ready to be written to or not.
-    fn poll_write_ready(&self, waker: &Waker) -> Poll<Result<Self::Ok, Self::Err>> {
-        self.io.poll_write_ready(waker)
+    fn poll_write_ready(&self, cx: &mut Context<'_>) -> Poll<Result<Self::Ok, Self::Err>> {
+        self.io.poll_write_ready(&mut cx)
     }
 }
 
