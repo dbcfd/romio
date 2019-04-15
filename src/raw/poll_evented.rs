@@ -13,6 +13,7 @@ use std::io::{self, Read, Write};
 use std::sync::atomic::AtomicUsize;
 use std::sync::atomic::Ordering::Relaxed;
 use std::task::Context;
+use std::pin::Pin;
 
 /// Associates an I/O resource that implements the [`std::io::Read`] and/or
 /// [`std::io::Write`] traits with the reactor that drives it.
@@ -163,7 +164,7 @@ where
     /// cleared by calling [`clear_read_ready`].
     ///
     /// [`clear_read_ready`]: #method.clear_read_ready
-    pub fn poll_read_ready(&self, cx: &mut Context<'_>) -> Poll<io::Result<mio::Ready>> {
+    fn poll_read_ready(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<mio::Ready>> {
         self.register()?;
 
         // Load cached & encoded readiness.
@@ -321,7 +322,7 @@ impl<E> AsyncRead for PollEvented<E>
 where
     E: Evented + Read,
 {
-    fn poll_read(&mut self, cx: &mut Context<'_>, buf: &mut [u8]) -> Poll<io::Result<usize>> {
+    fn poll_read(mut self: Pin<&mut Self>, cx: &mut Context<'_>, buf: &mut [u8]) -> Poll<io::Result<usize>> {
         ready!(self.poll_read_ready(&mut cx)?);
 
         let r = self.get_mut().read(buf);
@@ -339,7 +340,7 @@ impl<E> AsyncWrite for PollEvented<E>
 where
     E: Evented + Write,
 {
-    fn poll_write(&mut self, cx: &mut Context<'_>, buf: &[u8]) -> Poll<io::Result<usize>> {
+    fn poll_write(mut self: Pin<&mut Self>, cx: &mut Context<'_>, buf: &[u8]) -> Poll<io::Result<usize>> {
         ready!(self.poll_write_ready(&mut cx)?);
 
         let r = self.get_mut().write(buf);
@@ -352,7 +353,7 @@ where
         }
     }
 
-    fn poll_flush(&mut self, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
+    fn poll_flush(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
         ready!(self.poll_write_ready(&mut cx)?);
 
         let r = self.get_mut().flush();
@@ -365,7 +366,7 @@ where
         }
     }
 
-    fn poll_close(&mut self, _: &mut Context<'_>) -> Poll<io::Result<()>> {
+    fn poll_close(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
         Poll::Ready(Ok(()))
     }
 }
@@ -377,7 +378,7 @@ where
     E: Evented,
     &'a E: Read,
 {
-    fn poll_read(&mut self, cx: &mut Context<'_>, buf: &mut [u8]) -> Poll<io::Result<usize>> {
+    fn poll_read(mut self: Pin<&mut Self>, cx: &mut Context<'_>, buf: &mut [u8]) -> Poll<io::Result<usize>> {
         ready!(self.poll_read_ready(&mut cx)?);
 
         let r = self.get_ref().read(buf);
@@ -396,7 +397,7 @@ where
     E: Evented,
     &'a E: Write,
 {
-    fn poll_write(&mut self, cx: &mut Context<'_>, buf: &[u8]) -> Poll<io::Result<usize>> {
+    fn poll_write(mut self: Pin<&mut Self>, cx: &mut Context<'_>, buf: &[u8]) -> Poll<io::Result<usize>> {
         ready!(self.poll_write_ready(&mut cx)?);
 
         let r = self.get_ref().write(buf);
@@ -409,7 +410,7 @@ where
         }
     }
 
-    fn poll_flush(&mut self, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
+    fn poll_flush(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
         ready!(self.poll_write_ready(&mut cx)?);
 
         let r = self.get_ref().flush();
@@ -422,7 +423,7 @@ where
         }
     }
 
-    fn poll_close(&mut self, _: &mut Context<'_>) -> Poll<io::Result<()>> {
+    fn poll_close(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
         Poll::Ready(Ok(()))
     }
 }

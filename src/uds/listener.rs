@@ -137,7 +137,7 @@ impl AsyncReady for UnixListener {
     type Err = std::io::Error;
 
     /// Check if the stream can be read from.
-    fn poll_ready(&self, cx: &mut Context<'_>) -> Poll<Result<Self::Ok, Self::Err>> {
+    fn poll_ready(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<Self::Ok, Self::Err>> {
         let (io, addr) = ready!(self.poll_accept_std(&mut cx)?);
         let io = mio_uds::UnixStream::from_stream(io)?;
         Poll::Ready(Ok((UnixStream::new(io), addr)))
