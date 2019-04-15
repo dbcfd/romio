@@ -173,7 +173,10 @@ impl AsyncReadReady for UnixStream {
     type Err = io::Error;
 
     /// Test whether this socket is ready to be read or not.
-    fn poll_read_ready(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<Self::Ok, Self::Err>> {
+    fn poll_read_ready(
+        mut self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+    ) -> Poll<Result<Self::Ok, Self::Err>> {
         self.io.poll_read_ready(&mut cx)
     }
 }
@@ -183,14 +186,21 @@ impl AsyncWriteReady for UnixStream {
     type Err = io::Error;
 
     /// Test whether this socket is ready to be written to or not.
-    fn poll_write_ready(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<Self::Ok, Self::Err>> {
+    fn poll_write_ready(
+        mut self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+    ) -> Poll<Result<Self::Ok, Self::Err>> {
         self.io.poll_write_ready(&mut cx)
     }
 }
 
 impl AsyncRead for UnixStream {
-    fn poll_read(mut self: Pin<&mut Self>, cx: &mut Context<'_>, buf: &mut [u8]) -> Poll<io::Result<usize>> {
-        <&UnixStream>::poll_read(&mut &*self, cx, buf)
+    fn poll_read(
+        mut self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+        buf: &mut [u8],
+    ) -> Poll<io::Result<usize>> {
+        <&UnixStream>::poll_read(Pin::new(&mut &*self), cx, buf)
     }
 
     fn poll_vectored_read(
@@ -198,13 +208,17 @@ impl AsyncRead for UnixStream {
         cx: &mut Context<'_>,
         vec: &mut [&mut IoVec],
     ) -> Poll<io::Result<usize>> {
-        <&UnixStream>::poll_vectored_read(&mut &*self, cx, vec)
+        <&UnixStream>::poll_vectored_read(Pin::new(&mut &*self), cx, vec)
     }
 }
 
 impl AsyncWrite for UnixStream {
-    fn poll_write(mut self: Pin<&mut Self>, cx: &mut Context<'_>, buf: &[u8]) -> Poll<io::Result<usize>> {
-        <&UnixStream>::poll_write(&mut &*self, cx, buf)
+    fn poll_write(
+        mut self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+        buf: &[u8],
+    ) -> Poll<io::Result<usize>> {
+        <&UnixStream>::poll_write(Pin::new(&mut &*self), cx, buf)
     }
 
     fn poll_vectored_write(
@@ -212,21 +226,25 @@ impl AsyncWrite for UnixStream {
         cx: &mut Context<'_>,
         vec: &[&IoVec],
     ) -> Poll<io::Result<usize>> {
-        <&UnixStream>::poll_vectored_write(&mut &*self, cx, vec)
+        <&UnixStream>::poll_vectored_write(Pin::new(&mut &*self), cx, vec)
     }
 
     fn poll_flush(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
-        <&UnixStream>::poll_flush(&mut &*self, cx)
+        <&UnixStream>::poll_flush(Pin::new(&mut &*self), cx)
     }
 
     fn poll_close(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
-        <&UnixStream>::poll_close(&mut &*self, cx)
+        <&UnixStream>::poll_close(Pin::new(&mut &*self), cx)
     }
 }
 
 impl<'a> AsyncRead for &'a UnixStream {
-    fn poll_read(mut self: Pin<&mut Self>, cx: &mut Context<'_>, buf: &mut [u8]) -> Poll<io::Result<usize>> {
-        (&self.io).poll_read(cx, buf)
+    fn poll_read(
+        mut self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+        buf: &mut [u8],
+    ) -> Poll<io::Result<usize>> {
+        (&self.io).poll_read(cx.waker(), buf)
     }
 
     fn poll_vectored_read(
@@ -248,7 +266,11 @@ impl<'a> AsyncRead for &'a UnixStream {
 }
 
 impl<'a> AsyncWrite for &'a UnixStream {
-    fn poll_write(mut self: Pin<&mut Self>, cx: &mut Context<'_>, buf: &[u8]) -> Poll<io::Result<usize>> {
+    fn poll_write(
+        mut self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+        buf: &[u8],
+    ) -> Poll<io::Result<usize>> {
         (&self.io).poll_write(cx, buf)
     }
 

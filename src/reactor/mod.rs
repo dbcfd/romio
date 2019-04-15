@@ -515,10 +515,10 @@ impl Inner {
             Direction::Write => (&sched.writer, mio::Ready::writable()),
         };
 
-        atomic_waker.register(&mut cx);
+        atomic_waker.register(&cx.waker());
 
         if sched.readiness.load(SeqCst) & ready.as_usize() != 0 {
-            atomic_waker.waker().wake();
+            atomic_waker.wake();
         }
     }
 }

@@ -217,7 +217,7 @@ impl AsyncReady for TcpListener {
     type Err = std::io::Error;
 
     /// Check if the stream can be read from.
-    fn poll_ready(&self, cx: &mut Context<'_>) -> Poll<Result<Self::Ok, Self::Err>> {
+    fn poll_ready(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<Self::Ok, Self::Err>> {
         let (io, addr) = ready!(self.poll_accept_std(&mut cx)?);
         let io = mio::net::TcpStream::from_stream(io)?;
         let io = TcpStream::new(io);
@@ -255,7 +255,7 @@ impl<'a> Stream for Incoming<'a> {
     type Item = io::Result<TcpStream>;
 
     fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        let (socket, _) = ready!(self.inner.poll_ready(&mut cx)?);
+        let (socket, _) = ready!(Pin::new(self.inner).poll_ready(&mut cx)?);
         Poll::Ready(Some(Ok(socket)))
     }
 }

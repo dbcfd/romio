@@ -203,7 +203,7 @@ impl Registration {
 
                             let cx = unsafe { &*cx };
 
-                            inner.register(cx, direction);
+                            inner.register(&mut cx, direction);
                         }
 
                         ptr = next;
@@ -485,8 +485,8 @@ impl Inner {
             let cx = cx.unwrap();
             // Update the task info
             match direction {
-                Direction::Read => sched.reader.register(&mut cx),
-                Direction::Write => sched.writer.register(&mut cx),
+                Direction::Read => sched.reader.register(&cx.waker()),
+                Direction::Write => sched.writer.register(&cx.waker()),
             }
 
             // Try again

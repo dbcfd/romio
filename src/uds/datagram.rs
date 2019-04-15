@@ -12,6 +12,7 @@ use std::os::unix::io::{AsRawFd, RawFd};
 use std::os::unix::net::SocketAddr;
 use std::path::{Path, PathBuf};
 use std::task::Context;
+use std::pin::Pin;
 
 /// An I/O object representing a Unix datagram socket.
 pub struct UnixDatagram {
@@ -140,7 +141,7 @@ impl AsyncDatagram for UnixDatagram {
     type Err = io::Error;
 
     fn poll_send_to(
-        &mut self,
+        self: Pin<&mut Self>,
         cx: &mut Context<'_>,
         buf: &[u8],
         receiver: &Self::Receiver,
@@ -158,7 +159,7 @@ impl AsyncDatagram for UnixDatagram {
     }
 
     fn poll_recv_from(
-        &mut self,
+        self: Pin<&mut Self>,
         cx: &mut Context<'_>,
         buf: &mut [u8],
     ) -> Poll<io::Result<(usize, Self::Sender)>> {
@@ -180,7 +181,7 @@ impl AsyncReadReady for UnixDatagram {
     type Err = io::Error;
 
     /// Test whether this socket is ready to be read or not.
-    fn poll_read_ready(&self, cx: &mut Context<'_>) -> Poll<Result<Self::Ok, Self::Err>> {
+    fn poll_read_ready(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<Self::Ok, Self::Err>> {
         self.io.poll_read_ready(&mut cx)
     }
 }
@@ -190,7 +191,7 @@ impl AsyncWriteReady for UnixDatagram {
     type Err = io::Error;
 
     /// Test whether this socket is ready to be written to or not.
-    fn poll_write_ready(&self, cx: &mut Context<'_>) -> Poll<Result<Self::Ok, Self::Err>> {
+    fn poll_write_ready(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<Self::Ok, Self::Err>> {
         self.io.poll_write_ready(&mut cx)
     }
 }

@@ -308,7 +308,7 @@ impl AsyncDatagram for UdpSocket {
     type Err = io::Error;
 
     fn poll_send_to(
-        &mut self,
+        self: Pin<&mut Self>,
         cx: &mut Context<'_>,
         buf: &[u8],
         receiver: &Self::Receiver,
@@ -326,7 +326,7 @@ impl AsyncDatagram for UdpSocket {
     }
 
     fn poll_recv_from(
-        &mut self,
+        self: Pin<&mut Self>,
         cx: &mut Context<'_>,
         buf: &mut [u8],
     ) -> Poll<io::Result<(usize, Self::Sender)>> {
@@ -343,7 +343,10 @@ impl AsyncDatagram for UdpSocket {
     }
 }
 
-impl AsyncReadReady for UdpSocket {
+impl AsyncReadReady for UdpSocket
+where
+    Self: Unpin,
+{
     type Ok = mio::Ready;
     type Err = io::Error;
 
@@ -354,7 +357,10 @@ impl AsyncReadReady for UdpSocket {
     ///
     /// The socket will remain in a read-ready state until calls to `poll_recv`
     /// return `Pending`.
-    fn poll_read_ready(&self, cx: &mut Context<'_>) -> Poll<Result<Self::Ok, Self::Err>> {
+    fn poll_read_ready(
+        self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+    ) -> Poll<Result<Self::Ok, Self::Err>> {
         self.io.poll_read_ready(&mut cx)
     }
 }
@@ -370,7 +376,10 @@ impl AsyncWriteReady for UdpSocket {
     ///
     /// The I/O resource will remain in a write-ready state until calls to
     /// `poll_send` return `Pending`.
-    fn poll_write_ready(&self, cx: &mut Context<'_>) -> Poll<Result<Self::Ok, Self::Err>> {
+    fn poll_write_ready(
+        self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+    ) -> Poll<Result<Self::Ok, Self::Err>> {
         self.io.poll_write_ready(&mut cx)
     }
 }
