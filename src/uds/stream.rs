@@ -39,6 +39,8 @@ enum State {
     Empty,
 }
 
+impl Unpin for UnixStream {}
+
 impl UnixStream {
     /// Connects to the socket named by `path`.
     ///
