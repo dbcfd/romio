@@ -4,7 +4,6 @@ use crate::raw::PollEvented;
 
 use async_ready::{AsyncReadReady, AsyncWriteReady, TakeError};
 use futures::io::{AsyncRead, AsyncWrite};
-use futures::task::Waker;
 use futures::{ready, Future, Poll};
 use iovec::IoVec;
 
@@ -15,6 +14,7 @@ use std::os::unix::io::{AsRawFd, RawFd};
 use std::os::unix::net::SocketAddr;
 use std::path::Path;
 use std::pin::Pin;
+use std::task::Context;
 
 /// A structure representing a connected Unix socket.
 ///
@@ -207,7 +207,11 @@ impl AsyncWrite for UnixStream {
         <&UnixStream>::poll_write(&mut &*self, cx, buf)
     }
 
-    fn poll_vectored_write(&mut self, cx: &mut Context<'_>, vec: &[&IoVec]) -> Poll<io::Result<usize>> {
+    fn poll_vectored_write(
+        &mut self,
+        cx: &mut Context<'_>,
+        vec: &[&IoVec],
+    ) -> Poll<io::Result<usize>> {
         <&UnixStream>::poll_vectored_write(&mut &*self, cx, vec)
     }
 
@@ -248,7 +252,11 @@ impl<'a> AsyncWrite for &'a UnixStream {
         (&self.io).poll_write(cx, buf)
     }
 
-    fn poll_vectored_write(&mut self, cx: &mut Context<'_>, bufs: &[&IoVec]) -> Poll<io::Result<usize>> {
+    fn poll_vectored_write(
+        &mut self,
+        cx: &mut Context<'_>,
+        bufs: &[&IoVec],
+    ) -> Poll<io::Result<usize>> {
         ready!(self.poll_write_ready(&mut cx)?);
 
         let r = self.io.get_ref().write_bufs(bufs);

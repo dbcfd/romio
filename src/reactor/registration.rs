@@ -1,6 +1,5 @@
 use super::{Direction, HandlePriv};
 
-use futures::task::Waker;
 use futures::Poll;
 use mio::{self, Evented};
 
@@ -8,6 +7,7 @@ use std::cell::UnsafeCell;
 use std::sync::atomic::AtomicUsize;
 use std::sync::atomic::Ordering::SeqCst;
 use std::{io, ptr, usize};
+use std::task::Context;
 
 /// Associates an I/O resource with the reactor instance that drives it.
 ///
@@ -63,10 +63,10 @@ struct Inner {
 
 /// Waker waiting on readiness notifications.
 #[derive(Debug)]
-struct Node {
+struct Node<'c> {
     direction: Direction,
-    cx: *const Context,
-    next: *mut Node,
+    cx: *const Context<'c>,
+    next: *mut Node<'c>,
 }
 
 /// Initial state. The handle is not set and the registration is idle.
@@ -355,7 +355,7 @@ impl Registration {
                     let mut n = node.take().unwrap_or_else(|| {
                         Box::new(Node {
                             direction,
-                            cx: cx as *const Context,
+                            cx: cx as *const Context<'_>,
                             next: ptr::null_mut(),
                         })
                     });

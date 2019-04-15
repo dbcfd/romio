@@ -3,12 +3,12 @@ use std::io;
 use std::mem;
 use std::net::{Shutdown, SocketAddr};
 use std::pin::Pin;
+use std::task::{Context, Poll};
 use std::time::Duration;
 
 use async_ready::{AsyncReadReady, AsyncWriteReady};
 use futures::io::{AsyncRead, AsyncWrite};
-use futures::task::Waker;
-use futures::{ready, Future, Poll};
+use futures::{ready, Future};
 use iovec::IoVec;
 use mio;
 
@@ -454,12 +454,16 @@ impl TcpStream {
 // ===== impl Read / Write =====
 
 impl AsyncRead for TcpStream {
-    fn poll_read(&mut self, cx: &mut Context<'_>, buf: &mut [u8]) -> Poll<io::Result<usize>> {
+    fn poll_read(
+        mut self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+        buf: &mut [u8],
+    ) -> Poll<io::Result<usize>> {
         <&TcpStream>::poll_read(&mut &*self, cx, buf)
     }
 
     fn poll_vectored_read(
-        &mut self,
+        mut self: Pin<&mut Self>,
         cx: &mut Context<'_>,
         vec: &mut [&mut IoVec],
     ) -> Poll<io::Result<usize>> {
@@ -468,19 +472,27 @@ impl AsyncRead for TcpStream {
 }
 
 impl AsyncWrite for TcpStream {
-    fn poll_write(&mut self, cx: &mut Context<'_>, buf: &[u8]) -> Poll<io::Result<usize>> {
+    fn poll_write(
+        mut self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+        buf: &[u8],
+    ) -> Poll<io::Result<usize>> {
         <&TcpStream>::poll_write(&mut &*self, cx, buf)
     }
 
-    fn poll_vectored_write(&mut self, cx: &mut Context<'_>, vec: &[&IoVec]) -> Poll<io::Result<usize>> {
+    fn poll_vectored_write(
+        mut self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+        vec: &[&IoVec],
+    ) -> Poll<io::Result<usize>> {
         <&TcpStream>::poll_vectored_write(&mut &*self, cx, vec)
     }
 
-    fn poll_flush(&mut self, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
+    fn poll_flush(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
         <&TcpStream>::poll_flush(&mut &*self, cx)
     }
 
-    fn poll_close(&mut self, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
+    fn poll_close(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
         <&TcpStream>::poll_close(&mut &*self, cx)
     }
 }
@@ -488,12 +500,16 @@ impl AsyncWrite for TcpStream {
 // ===== impl Read / Write for &'a =====
 
 impl<'a> AsyncRead for &'a TcpStream {
-    fn poll_read(&mut self, cx: &mut Context<'_>, buf: &mut [u8]) -> Poll<io::Result<usize>> {
+    fn poll_read(
+        mut self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+        buf: &mut [u8],
+    ) -> Poll<io::Result<usize>> {
         (&self.io).poll_read(cx, buf)
     }
 
     fn poll_vectored_read(
-        &mut self,
+        mut self: Pin<&mut Self>,
         cx: &mut Context<'_>,
         bufs: &mut [&mut IoVec],
     ) -> Poll<io::Result<usize>> {
@@ -511,11 +527,19 @@ impl<'a> AsyncRead for &'a TcpStream {
 }
 
 impl<'a> AsyncWrite for &'a TcpStream {
-    fn poll_write(&mut self, cx: &mut Context<'_>, buf: &[u8]) -> Poll<io::Result<usize>> {
+    fn poll_write(
+        mut self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+        buf: &[u8],
+    ) -> Poll<io::Result<usize>> {
         (&self.io).poll_write(cx, buf)
     }
 
-    fn poll_vectored_write(&mut self, cx: &mut Context<'_>, bufs: &[&IoVec]) -> Poll<io::Result<usize>> {
+    fn poll_vectored_write(
+        mut self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+        bufs: &[&IoVec],
+    ) -> Poll<io::Result<usize>> {
         ready!(self.poll_write_ready(&mut cx)?);
 
         let r = self.io.get_ref().write_bufs(bufs);
@@ -527,11 +551,11 @@ impl<'a> AsyncWrite for &'a TcpStream {
         return Poll::Ready(r);
     }
 
-    fn poll_flush(&mut self, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
+    fn poll_flush(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
         (&self.io).poll_flush(&mut cx)
     }
 
-    fn poll_close(&mut self, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
+    fn poll_close(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
         (&self.io).poll_close(&mut cx)
     }
 }
@@ -547,7 +571,10 @@ impl AsyncReadReady for TcpStream {
     ///
     /// Once the stream is ready for reading, it will remain so until all available
     /// bytes have been extracted (via `futures::io::AsyncRead` and related traits).
-    fn poll_read_ready(&self, cx: &mut Context<'_>) -> Poll<Result<Self::Ok, Self::Err>> {
+    fn poll_read_ready(
+        mut self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+    ) -> Poll<Result<Self::Ok, Self::Err>> {
         self.io.poll_read_ready(&mut cx)
     }
 }
@@ -570,7 +597,10 @@ impl AsyncWriteReady for TcpStream {
     /// # Panics
     ///
     /// This function panics if called from outside of a task context.
-    fn poll_write_ready(&self, cx: &mut Context<'_>) -> Poll<Result<Self::Ok, Self::Err>> {
+    fn poll_write_ready(
+        mut self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+    ) -> Poll<Result<Self::Ok, Self::Err>> {
         self.io.poll_write_ready(&mut cx)
     }
 }

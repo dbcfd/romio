@@ -3,7 +3,6 @@ use super::UnixStream;
 use crate::raw::PollEvented;
 
 use async_ready::{AsyncReady, TakeError};
-use futures::task::Waker;
 use futures::{ready, Poll, Stream};
 use mio_uds;
 
@@ -13,6 +12,7 @@ use std::os::unix::io::{AsRawFd, RawFd};
 use std::os::unix::net::{self, SocketAddr};
 use std::path::Path;
 use std::pin::Pin;
+use std::task::Context;
 
 /// A Unix socket which can accept connections from other Unix sockets.
 ///
@@ -111,7 +111,10 @@ impl UnixListener {
         Incoming::new(self)
     }
 
-    fn poll_accept_std(&self, cx: &mut Context<'_>) -> Poll<io::Result<(net::UnixStream, SocketAddr)>> {
+    fn poll_accept_std(
+        &self,
+        cx: &mut Context<'_>,
+    ) -> Poll<io::Result<(net::UnixStream, SocketAddr)>> {
         ready!(self.io.poll_read_ready(&mut cx)?);
 
         match self.io.get_ref().accept_std() {

@@ -15,10 +15,10 @@ use std::fmt;
 use std::io;
 use std::net::{Ipv4Addr, Ipv6Addr, SocketAddr};
 use std::pin::Pin;
+use std::task::Context;
 
 use async_datagram::AsyncDatagram;
 use async_ready::{AsyncReadReady, AsyncWriteReady};
-use futures::task::Waker;
 use futures::Future;
 use futures::{ready, Poll};
 use mio;

@@ -1,6 +1,6 @@
 use super::{Handle, Reactor};
 
-use futures::task::{AtomicWaker, Waker};
+use futures::task::AtomicWaker;
 use futures::{executor, Future, Poll};
 use log::debug;
 
@@ -9,6 +9,7 @@ use std::pin::Pin;
 use std::sync::atomic::AtomicUsize;
 use std::sync::atomic::Ordering::SeqCst;
 use std::sync::Arc;
+use std::task::Context;
 use std::thread;
 
 /// Handle to the reactor running on a background thread.

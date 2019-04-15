@@ -20,7 +20,7 @@ use std::sync::{Arc, Weak};
 use std::time::{Duration, Instant};
 use std::{fmt, usize};
 
-use futures::task::{AtomicWaker, Waker};
+use futures::task::{AtomicWaker, Context};
 use log::{debug, log_enabled, trace, Level};
 use mio::event::Evented;
 use slab::Slab;

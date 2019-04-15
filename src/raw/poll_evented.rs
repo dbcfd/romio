@@ -4,7 +4,6 @@ use crate::reactor::platform;
 use crate::reactor::registration::Registration;
 
 use futures::io::{AsyncRead, AsyncWrite};
-use futures::task::Waker;
 use futures::{ready, Poll};
 use mio;
 use mio::event::Evented;
@@ -13,6 +12,7 @@ use std::fmt;
 use std::io::{self, Read, Write};
 use std::sync::atomic::AtomicUsize;
 use std::sync::atomic::Ordering::Relaxed;
+use std::task::Context;
 
 /// Associates an I/O resource that implements the [`std::io::Read`] and/or
 /// [`std::io::Write`] traits with the reactor that drives it.

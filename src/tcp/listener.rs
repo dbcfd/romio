@@ -4,10 +4,10 @@ use std::fmt;
 use std::io;
 use std::net::{self, SocketAddr};
 use std::pin::Pin;
+use std::task::Context;
 
 use async_ready::AsyncReady;
 use futures::stream::Stream;
-use futures::task::Waker;
 use futures::{ready, Poll};
 use mio;
 
@@ -195,7 +195,10 @@ impl TcpListener {
         self.io.get_ref().set_ttl(ttl)
     }
 
-    fn poll_accept_std(&self, cx: &mut Context<'_>) -> Poll<io::Result<(net::TcpStream, SocketAddr)>> {
+    fn poll_accept_std(
+        &self,
+        cx: &mut Context<'_>,
+    ) -> Poll<io::Result<(net::TcpStream, SocketAddr)>> {
         ready!(self.io.poll_read_ready(&mut cx)?);
 
         match self.io.get_ref().accept_std() {
