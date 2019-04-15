@@ -246,7 +246,7 @@ impl<'a> AsyncRead for &'a UnixStream {
         cx: &mut Context<'_>,
         buf: &mut [u8],
     ) -> Poll<io::Result<usize>> {
-        (&self.io).poll_read(cx.waker(), buf)
+        Pin::new(&self.io).poll_read(cx.waker(), buf)
     }
 
     fn poll_vectored_read(
@@ -273,7 +273,7 @@ impl<'a> AsyncWrite for &'a UnixStream {
         cx: &mut Context<'_>,
         buf: &[u8],
     ) -> Poll<io::Result<usize>> {
-        (&self.io).poll_write(cx, buf)
+        Pin::new(&mut self.io).poll_write(cx, buf)
     }
 
     fn poll_vectored_write(
@@ -293,11 +293,11 @@ impl<'a> AsyncWrite for &'a UnixStream {
     }
 
     fn poll_flush(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
-        (&self.io).poll_flush(&mut cx)
+        Pin::new(&mut self.io).poll_flush(&mut cx)
     }
 
     fn poll_close(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
-        (&self.io).poll_close(&mut cx)
+        Pin::new(&mut self.io).poll_close(&mut cx)
     }
 }
 
