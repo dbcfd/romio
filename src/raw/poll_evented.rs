@@ -166,7 +166,7 @@ where
     /// cleared by calling [`clear_read_ready`].
     ///
     /// [`clear_read_ready`]: #method.clear_read_ready
-    fn poll_read_ready(
+    pub fn poll_read_ready(
         mut self: Pin<&mut Self>,
         cx: &mut Context<'_>,
     ) -> Poll<io::Result<mio::Ready>> {
@@ -216,12 +216,12 @@ where
     ///
     /// The `mask` argument specifies the readiness bits to clear. This may not
     /// include `writable` or `hup`.
-    pub fn clear_read_ready(&self, cx: &mut Context<'_>) -> io::Result<()> {
+    pub fn clear_read_ready(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> io::Result<()> {
         self.inner
             .read_readiness
             .fetch_and(!mio::Ready::readable().as_usize(), Relaxed);
 
-        if Pin::new(self).poll_read_ready(&mut cx)?.is_ready() {
+        if self.poll_read_ready(cx).is_ready() {
             // Notify the current task
             cx.waker().wake();
         }
@@ -299,12 +299,12 @@ where
     /// # Panics
     ///
     /// This function will panic if called from outside of a task context.
-    pub fn clear_write_ready(&self, cx: &mut Context<'_>) -> io::Result<()> {
+    pub fn clear_write_ready(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> io::Result<()> {
         self.inner
             .write_readiness
             .fetch_and(!mio::Ready::writable().as_usize(), Relaxed);
 
-        if self.poll_write_ready(&mut cx)?.is_ready() {
+        if self.poll_write_ready(cx)?.is_ready() {
             // Notify the current task
             cx.waker().wake();
         }
@@ -386,68 +386,71 @@ where
 
 // ===== &'a AsyncRead / &'a AsyncWrite impls =====
 
-impl<'a, E> AsyncRead for &'a PollEvented<E>
-where
-    E: Evented,
-    &'a E: Read,
-{
-    fn poll_read(
-        mut self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-        buf: &mut [u8],
-    ) -> Poll<io::Result<usize>> {
-        ready!(Pin::new(self).poll_read_ready(&mut cx)?);
+//impl<'a, E> AsyncRead for &'a PollEvented<E>
+//where
+//    E: Evented,
+//    &'a E: Read,
+//{
+//    fn poll_read(
+//        mut self: Pin<&mut Self>,
+//        cx: &mut Context<'_>,
+//        buf: &mut [u8],
+//    ) -> Poll<io::Result<usize>> {
+//        let r = self.poll_read_ready(cx);
+//        match ready!(r) {
+//            Err(e) => Poll::Ready(Err(e)),
+//            Ok(_) => {
+//                let r = self.get_ref().read(buf);
+//
+//                if is_wouldblock(&r) {
+//                    self.clear_read_ready(cx)?;
+//                    Poll::Pending
+//                } else {
+//                    Poll::Ready(r)
+//                }
+//            }
+//        }
+//    }
+//}
 
-        let r = self.get_ref().read(buf);
-
-        if is_wouldblock(&r) {
-            self.clear_read_ready(&mut cx)?;
-            Poll::Pending
-        } else {
-            Poll::Ready(r)
-        }
-    }
-}
-
-impl<'a, E> AsyncWrite for &'a PollEvented<E>
-where
-    E: Evented,
-    &'a E: Write,
-{
-    fn poll_write(
-        mut self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-        buf: &[u8],
-    ) -> Poll<io::Result<usize>> {
-        ready!(self.poll_write_ready(&mut cx)?);
-
-        let r = self.get_ref().write(buf);
-
-        if is_wouldblock(&r) {
-            self.clear_write_ready(&mut cx)?;
-            Poll::Pending
-        } else {
-            Poll::Ready(r)
-        }
-    }
-
-    fn poll_flush(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
-        ready!(self.poll_write_ready(&mut cx)?);
-
-        let r = self.get_ref().flush();
-
-        if is_wouldblock(&r) {
-            self.clear_write_ready(&mut cx)?;
-            Poll::Pending
-        } else {
-            Poll::Ready(r)
-        }
-    }
-
-    fn poll_close(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
-        Poll::Ready(Ok(()))
-    }
-}
+//impl<E> AsyncWrite for PollEvented<E>
+//where
+//    E: Evented + Write,
+//{
+//    fn poll_write(
+//        mut self: Pin<&mut Self>,
+//        cx: &mut Context<'_>,
+//        buf: &[u8],
+//    ) -> Poll<io::Result<usize>> {
+//        ready!(self.poll_write_ready(&mut cx)?);
+//
+//        let r = self.get_ref().write(buf);
+//
+//        if is_wouldblock(&r) {
+//            self.clear_write_ready(cx)?;
+//            Poll::Pending
+//        } else {
+//            Poll::Ready(r)
+//        }
+//    }
+//
+//    fn poll_flush(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
+//        ready!(self.poll_write_ready(cx)?);
+//
+//        let r = self.get_ref().flush();
+//
+//        if is_wouldblock(&r) {
+//            self.clear_write_ready(cx)?;
+//            Poll::Pending
+//        } else {
+//            Poll::Ready(r)
+//        }
+//    }
+//
+//    fn poll_close(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
+//        Poll::Ready(Ok(()))
+//    }
+//}
 
 fn is_wouldblock<T>(r: &io::Result<T>) -> bool {
     match *r {

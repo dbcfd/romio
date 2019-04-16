@@ -146,12 +146,12 @@ impl AsyncDatagram for UnixDatagram {
         buf: &[u8],
         receiver: &Self::Receiver,
     ) -> Poll<io::Result<usize>> {
-        ready!(self.io.poll_write_ready(&mut cx)?);
+        ready!(Pin::new(&mut self.io).poll_write_ready(cx)?);
 
-        match self.io.get_ref().send_to(buf, receiver) {
+        match Pin::new(&mut self.io).get_ref().send_to(buf, receiver) {
             Ok(n) => Poll::Ready(Ok(n)),
             Err(ref e) if e.kind() == io::ErrorKind::WouldBlock => {
-                self.io.clear_write_ready(&mut cx)?;
+                Pin::new(&mut self.io).clear_write_ready(cx)?;
                 Poll::Pending
             }
             Err(e) => Poll::Ready(Err(e)),
@@ -163,12 +163,12 @@ impl AsyncDatagram for UnixDatagram {
         cx: &mut Context<'_>,
         buf: &mut [u8],
     ) -> Poll<io::Result<(usize, Self::Sender)>> {
-        ready!(self.io.poll_read_ready(&mut cx)?);
+        ready!(Pin::new(&mut self.io).poll_read_ready(cx)?);
 
-        let r = self.io.get_ref().recv_from(buf);
+        let r = Pin::new(&mut self.io).get_ref().recv_from(buf);
 
         if is_wouldblock(&r) {
-            self.io.clear_read_ready(&mut cx)?;
+            Pin::new(&mut self.io).clear_read_ready(cx)?;
             Poll::Pending
         } else {
             Poll::Ready(r)
@@ -182,7 +182,7 @@ impl AsyncReadReady for UnixDatagram {
 
     /// Test whether this socket is ready to be read or not.
     fn poll_read_ready(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<Self::Ok, Self::Err>> {
-        self.io.poll_read_ready(&mut cx)
+        Pin::new(&mut self.io).poll_read_ready(cx)
     }
 }
 
@@ -192,7 +192,7 @@ impl AsyncWriteReady for UnixDatagram {
 
     /// Test whether this socket is ready to be written to or not.
     fn poll_write_ready(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<Self::Ok, Self::Err>> {
-        self.io.poll_write_ready(&mut cx)
+        Pin::new(&mut self.io).poll_write_ready(cx)
     }
 }
 

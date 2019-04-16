@@ -459,7 +459,7 @@ impl AsyncRead for TcpStream {
         cx: &mut Context<'_>,
         buf: &mut [u8],
     ) -> Poll<io::Result<usize>> {
-        <&TcpStream>::poll_read(Pin::new(&mut &*self), cx, buf)
+        Pin::new(&mut self.io).poll_read(cx, buf)
     }
 
     fn poll_vectored_read(
@@ -467,66 +467,11 @@ impl AsyncRead for TcpStream {
         cx: &mut Context<'_>,
         vec: &mut [&mut IoVec],
     ) -> Poll<io::Result<usize>> {
-        <&TcpStream>::poll_vectored_read(Pin::new(&mut &*self), cx, vec)
+        Pin::new(&mut self.io).poll_vectored_read(cx, vec)
     }
 }
 
 impl AsyncWrite for TcpStream {
-    fn poll_write(
-        mut self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-        buf: &[u8],
-    ) -> Poll<io::Result<usize>> {
-        <&TcpStream>::poll_write(Pin::new(&mut &*self), cx, buf)
-    }
-
-    fn poll_vectored_write(
-        mut self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-        vec: &[&IoVec],
-    ) -> Poll<io::Result<usize>> {
-        <&TcpStream>::poll_vectored_write(Pin::new(&mut &*self), cx, vec)
-    }
-
-    fn poll_flush(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
-        <&TcpStream>::poll_flush(Pin::new(&mut &*self), cx)
-    }
-
-    fn poll_close(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
-        <&TcpStream>::poll_close(Pin::new(&mut &*self), cx)
-    }
-}
-
-// ===== impl Read / Write for &'a =====
-
-impl<'a> AsyncRead for &'a TcpStream {
-    fn poll_read(
-        mut self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-        buf: &mut [u8],
-    ) -> Poll<io::Result<usize>> {
-        Pin::new(&mut self.io).poll_read(cx, buf)
-    }
-
-    fn poll_vectored_read(
-        mut self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-        bufs: &mut [&mut IoVec],
-    ) -> Poll<io::Result<usize>> {
-        ready!(self.poll_read_ready(&mut cx)?);
-
-        let r = self.io.get_ref().read_bufs(bufs);
-
-        if is_wouldblock(&r) {
-            self.io.clear_read_ready(&mut cx)?;
-            Poll::Pending
-        } else {
-            Poll::Ready(r)
-        }
-    }
-}
-
-impl<'a> AsyncWrite for &'a TcpStream {
     fn poll_write(
         mut self: Pin<&mut Self>,
         cx: &mut Context<'_>,
@@ -538,27 +483,82 @@ impl<'a> AsyncWrite for &'a TcpStream {
     fn poll_vectored_write(
         mut self: Pin<&mut Self>,
         cx: &mut Context<'_>,
-        bufs: &[&IoVec],
+        vec: &[&IoVec],
     ) -> Poll<io::Result<usize>> {
-        ready!(self.poll_write_ready(&mut cx)?);
-
-        let r = self.io.get_ref().write_bufs(bufs);
-
-        if is_wouldblock(&r) {
-            self.io.clear_write_ready(&mut cx)?;
-        }
-
-        return Poll::Ready(r);
+        Pin::new(&mut self.io).poll_vectored_write(cx, vec)
     }
 
     fn poll_flush(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
-        Pin::new(&mut self.io).poll_flush(&mut cx)
+        Pin::new(&mut self.io).poll_flush(cx)
     }
 
     fn poll_close(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
-        Pin::new(&mut self.io).poll_close(&mut cx)
+        Pin::new(&mut self.io).poll_close(cx)
     }
 }
+
+// ===== impl Read / Write for &'a =====
+
+//impl<'a> AsyncRead for &'a TcpStream {
+//    fn poll_read(
+//        mut self: Pin<&mut Self>,
+//        cx: &mut Context<'_>,
+//        buf: &mut [u8],
+//    ) -> Poll<io::Result<usize>> {
+//        Pin::new(&mut self.io).poll_read(cx, buf)
+//    }
+//
+//    fn poll_vectored_read(
+//        mut self: Pin<&mut Self>,
+//        cx: &mut Context<'_>,
+//        bufs: &mut [&mut IoVec],
+//    ) -> Poll<io::Result<usize>> {
+//        ready!(self.poll_read_ready(cx)?);
+//
+//        let r = self.io.get_ref().read_bufs(bufs);
+//
+//        if is_wouldblock(&r) {
+//            Pin::new(&mut self.io).clear_read_ready(cx)?;
+//            Poll::Pending
+//        } else {
+//            Poll::Ready(r)
+//        }
+//    }
+//}
+//
+//impl<'a> AsyncWrite for &'a TcpStream {
+//    fn poll_write(
+//        mut self: Pin<&mut Self>,
+//        cx: &mut Context<'_>,
+//        buf: &[u8],
+//    ) -> Poll<io::Result<usize>> {
+//        Pin::new(&mut self.io).poll_write(cx, buf)
+//    }
+//
+//    fn poll_vectored_write(
+//        mut self: Pin<&mut Self>,
+//        cx: &mut Context<'_>,
+//        bufs: &[&IoVec],
+//    ) -> Poll<io::Result<usize>> {
+//        ready!(self.poll_write_ready(&mut cx)?);
+//
+//        let r = self.io.get_ref().write_bufs(bufs);
+//
+//        if is_wouldblock(&r) {
+//            self.io.clear_write_ready(cx)?;
+//        }
+//
+//        return Poll::Ready(r);
+//    }
+//
+//    fn poll_flush(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
+//        Pin::new(&mut self.io).poll_flush(cx)
+//    }
+//
+//    fn poll_close(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
+//        Pin::new(&mut self.io).poll_close(cx)
+//    }
+//}
 
 impl AsyncReadReady for TcpStream {
     type Ok = mio::Ready;
@@ -575,7 +575,7 @@ impl AsyncReadReady for TcpStream {
         mut self: Pin<&mut Self>,
         cx: &mut Context<'_>,
     ) -> Poll<Result<Self::Ok, Self::Err>> {
-        self.io.poll_read_ready(&mut cx)
+        Pin::new(&mut self.io).poll_read_ready(cx)
     }
 }
 
@@ -601,7 +601,7 @@ impl AsyncWriteReady for TcpStream {
         mut self: Pin<&mut Self>,
         cx: &mut Context<'_>,
     ) -> Poll<Result<Self::Ok, Self::Err>> {
-        self.io.poll_write_ready(&mut cx)
+        self.io.poll_write_ready(cx)
     }
 }
 

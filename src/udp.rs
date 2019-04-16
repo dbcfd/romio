@@ -313,12 +313,12 @@ impl AsyncDatagram for UdpSocket {
         buf: &[u8],
         receiver: &Self::Receiver,
     ) -> Poll<io::Result<usize>> {
-        ready!(self.io.poll_write_ready(&mut cx)?);
+        ready!(Pin::new(&mut self.io).poll_write_ready(cx)?);
 
-        match self.io.get_ref().send_to(buf, receiver) {
+        match Pin::new(&mut self.io).get_ref().send_to(buf, receiver) {
             Ok(n) => Poll::Ready(Ok(n)),
             Err(ref e) if e.kind() == io::ErrorKind::WouldBlock => {
-                self.io.clear_write_ready(&mut cx)?;
+                Pin::new(&mut self.io).clear_write_ready(cx)?;
                 Poll::Pending
             }
             Err(e) => Poll::Ready(Err(e)),
@@ -330,12 +330,12 @@ impl AsyncDatagram for UdpSocket {
         cx: &mut Context<'_>,
         buf: &mut [u8],
     ) -> Poll<io::Result<(usize, Self::Sender)>> {
-        ready!(self.io.poll_read_ready(&mut cx)?);
+        ready!(Pin::new(&mut self.io).poll_read_ready(cx)?);
 
-        match self.io.get_ref().recv_from(buf) {
+        match Pin::new(&mut self.io).get_ref().recv_from(buf) {
             Ok(n) => Poll::Ready(Ok(n)),
             Err(ref e) if e.kind() == io::ErrorKind::WouldBlock => {
-                self.io.clear_read_ready(&mut cx)?;
+                Pin::new(&mut self.io).clear_read_ready(cx)?;
                 Poll::Pending
             }
             Err(e) => Poll::Ready(Err(e)),
@@ -361,7 +361,7 @@ where
         self: Pin<&mut Self>,
         cx: &mut Context<'_>,
     ) -> Poll<Result<Self::Ok, Self::Err>> {
-        self.io.poll_read_ready(&mut cx)
+        Pin::new(&mut self.io).poll_read_ready(cx)
     }
 }
 
@@ -380,7 +380,7 @@ impl AsyncWriteReady for UdpSocket {
         self: Pin<&mut Self>,
         cx: &mut Context<'_>,
     ) -> Poll<Result<Self::Ok, Self::Err>> {
-        self.io.poll_write_ready(&mut cx)
+        self.io.poll_write_ready(cx)
     }
 }
 
@@ -419,7 +419,7 @@ impl<'a, 'b> Future for SendTo<'a, 'b> {
             buf,
             target,
         } = &mut *self;
-        socket.poll_send_to(cx, buf, target)
+        Pin::new(socket).poll_send_to(cx, buf, target)
     }
 }
 
@@ -435,6 +435,6 @@ impl<'a, 'b> Future for RecvFrom<'a, 'b> {
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let RecvFrom { socket, buf } = &mut *self;
-        socket.poll_recv_from(cx, buf)
+        Pin::new(socket).poll_recv_from(cx, buf)
     }
 }

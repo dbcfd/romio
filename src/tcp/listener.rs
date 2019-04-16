@@ -196,15 +196,15 @@ impl TcpListener {
     }
 
     fn poll_accept_std(
-        &self,
+        self: Pin<&mut Self>,
         cx: &mut Context<'_>,
     ) -> Poll<io::Result<(net::TcpStream, SocketAddr)>> {
-        ready!(self.io.poll_read_ready(&mut cx)?);
+        ready!(Pin::new(&mut self.io).poll_read_ready(cx)?);
 
-        match self.io.get_ref().accept_std() {
+        match Pin::new(&mut self.io).get_ref().accept_std() {
             Ok(pair) => Poll::Ready(Ok(pair)),
             Err(ref e) if e.kind() == io::ErrorKind::WouldBlock => {
-                self.io.clear_read_ready(&mut cx)?;
+                Pin::new(&mut self.io).clear_read_ready(cx)?;
                 Poll::Pending
             }
             Err(e) => Poll::Ready(Err(e)),

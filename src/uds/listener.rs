@@ -112,19 +112,19 @@ impl UnixListener {
     }
 
     fn poll_accept_std(
-        &self,
+        mut self: Pin<&mut Self>,
         cx: &mut Context<'_>,
     ) -> Poll<io::Result<(net::UnixStream, SocketAddr)>> {
-        ready!(self.io.poll_read_ready(&mut cx)?);
+        ready!(Pin::new(&mut self.io).poll_read_ready(cx)?);
 
-        match self.io.get_ref().accept_std() {
+        match Pin::new(&mut self.io).get_ref().accept_std() {
             Ok(Some((sock, addr))) => Poll::Ready(Ok((sock, addr))),
             Ok(None) => {
-                self.io.clear_read_ready(&mut cx)?;
+                Pin::new(&mut self.io).clear_read_ready(cx)?;
                 Poll::Pending
             }
             Err(ref err) if err.kind() == io::ErrorKind::WouldBlock => {
-                self.io.clear_read_ready(&mut cx)?;
+                Pin::new(&mut self.io).clear_read_ready(cx)?;
                 Poll::Pending
             }
             Err(err) => Poll::Ready(Err(err)),
@@ -196,7 +196,7 @@ impl Stream for Incoming {
     type Item = io::Result<UnixStream>;
 
     fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        let (socket, _) = ready!(self.inner.poll_ready(&mut cx)?);
+        let (socket, _) = ready!(Pin::new(&mut self.inner).poll_ready(cx)?);
         Poll::Ready(Some(Ok(socket)))
     }
 }
